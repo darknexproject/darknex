@@ -4,9 +4,10 @@
 
 TOOLCHAIN_URL=https://musl.cc/x86_64-linux-musl-cross.tgz
 # MKSH_VER=R59c
-GLIBC_VER=2.33
 CURL_VER=7.75.0
 MAKE_VER=4.3
+ZSH_VER=5.8-6
+TARGET=x86_64-linux-musl
 
 if [[ $(id -u) -ne 0 ]]; then
   echo "please run script as root"
@@ -56,14 +57,24 @@ rm -rf $WORKDIR
 mkdir -p $WORKDIR
 
 setup_toolchain() {
-  echo "installing busybox..."
+  echo "installing static gcc toolchain..."
+  
+  cd $WORKDIR
 
-  curl "https://busybox.net/downloads/binaries/1.31.0-defconfig-multiarch-musl/busybox-x86_64" --output "$DESTDIR/bin/busybox"
-  chmod +x "$DESTDIR/bin/busybox"
+  curl $TOOLCHAIN_URL -OL
+  tar xvpf $TARGET-cross.tgz
+  mv $TARGET-cross "$DESTDIR/toolchain"
 
-  cd "$DESTDIR/bin"
+  echo "installing toybox..."
 
-  ./busybox --install .
+  curl "http://landley.net/toybox/bin/toybox-x86_64" --output "$DESTDIR/toolchain/bin/toybox"
+  chmod +x "$DESTDIR/toolchain/bin/toybox"
+
+  cd "$DESTDIR/toolchain/bin"
+
+  for x in $(./toybox); do
+    ln -sv ./toybox $x
+  done
 
   # echo "installing mksh..."
 
@@ -75,18 +86,10 @@ setup_toolchain() {
   # CFLAGS="-static" sh Build.sh -r
   # install mksh "$DESTDIR/bin/mksh"
 
-  echo "installing static gcc toolchain..."
-
-  cd $WORKDIR
-
-  curl $TOOLCHAIN_URL -OL
-  tar xvpf x86_64-linux-musl-cross.tgz
-  mv x86_64-linux-musl-cross "$DESTDIR/toolchain"
-
   echo "installing static curl..."
 
-  curl "https://github.com/moparisthebest/static-curl/releases/download/v$CURL_VER/curl-amd64" --output $DESTDIR/bin/curl -L
-  chmod +x $DESTDIR/bin/curl
+  curl "https://github.com/moparisthebest/static-curl/releases/download/v$CURL_VER/curl-amd64" --output $DESTDIR/toolchain/bin/curl -L
+  chmod +x $DESTDIR/toolchain/bin/curl
 
   echo "installing make..."
 
@@ -97,11 +100,25 @@ setup_toolchain() {
   cd "make-$MAKE_VER"
   mkdir build
   cd build
+  export PATH=$DESTDIR/toolchain/bin:$PATH
   CFLAGS="-static" ../configure \
-    --prefix=/usr \
+    --host=$TARGET \
+    --prefix=/toolchain \
     --without-guile
   make -j$MKJOBS
   make DESTDIR=$DESTDIR install
+
+  echo "installing zsh..."
+
+  cd $WORKDIR
+
+  curl -OL http://ftp.us.debian.org/debian/pool/main/z/zsh/zsh-static_${ZSH_VER}_amd64.deb
+  $TARGET-ar x zsh-static_${ZSH_VER}_amd64.deb
+  tar xvpf "data.tar.xz"
+  mv ./bin/zsh-static $DESTDIR/toolchain/bin/zsh
+  cd $DESTDIR/bin
+  ln -sv ../toolchain/bin/zsh sh
+  ln -sv ../toolchain/bin/env env
 }
 
 echo "setting toolchain up..."

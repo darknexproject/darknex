@@ -23,10 +23,10 @@ fi
 mkdir -p $DESTDIR/etc
 
 cat > $DESTDIR/etc/os-release << "EOF"
-NAME="Nemesis Linux"
+NAME="Darknex Project"
 VERSION="git"
-ID=nemesis
-PRETTY_NAME="Nemesis Linux git"
+ID=darknexproject
+PRETTY_NAME="Darknex Project git"
 VERSION_CODENAME="git"
 EOF
 
@@ -100,22 +100,17 @@ fi
 echo "building musl..."
 
 cat << EOF | chroot $DESTDIR /bin/sh
+source /etc/profile
 cd /tmp
 curl -OL "http://musl.libc.org/releases/musl-$MUSL_VER.tar.gz"
 tar xvpf "musl-$MUSL_VER.tar.gz"
 cd "musl-$MUSL_VER"
 mkdir build
 cd build
-source /etc/profile
 ../configure --prefix=/usr --host=$HOST
 make -j$MKJOBS
 make install
 EOF
-
-echo "patching toolchain..."
-
-cd $DESTDIR/toolchain/bin
-ln -s gcc cc
 
 chroot $DESTDIR /bin/sh
 
